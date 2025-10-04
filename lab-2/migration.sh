@@ -1,104 +1,119 @@
 #!/bin/bash
 
 # Параметры подключения к базе данных
-DB_NAME="lab-2"
-DB_USER="postgres"
-DB_HOST="localhost"
-DB_PORT="5432"
+db_name="lab2"
+db_user="postgres"
+db_host="localhost"
+db_port="5432"
 
 # Путь к директории с миграциями
-MIGRATIONS_DIR="./migrations"
+dir_migrate="./migrations"
 
 # Функция для выполнения SQL из файла
 run_sql() {
-    local file_name="$1"
-    echo "Выполнение файла: $file_name"
+    # Принимаем путь к файлу в переменную
+    file_name="$1"
 
-    if ! psql -U "$DB_USER" -d "$DB_NAME" -h "$DB_HOST" -p "$DB_PORT" -f "$file_name"; then
+    if psql -U "$db_user" -d "$db_name" -h "$db_host" -p "$db_port" -f "$file_name"; then
+        echo "Файл $file_name выполнен"
+    else
         echo "Ошибка при выполнении файла: $file_name"
         exit 1
     fi
 }
 
-# Функция для выполнения SQL команды
+# Функция для выполнения SQL-запроса без возврата результата
 run_sql_c() {
+    # Принимаем запрос с изолированием названия переменной
     local sql_query="$1"
 
-    if ! psql -U "$DB_USER" -d "$DB_NAME" -h "$DB_HOST" -p "$DB_PORT" -c "$sql_query"; then
+    # Если psql завершится с ошибкой выводим сообщение и завершаем скрипт
+    if ! psql -U "$db_user" -d "$db_name" -h "$db_host" -p "$db_port" -c "$sql_query"; then
         echo "Ошибка при выполнении SQL запроса: $sql_query"
         exit 1
     fi
 }
 
-# Функция для выполнения SQL команды с возвратом результата (без заголовков)
+# Функция для выполнения SQL-запроса с возвратом
 run_sql_c_t() {
     local sql_query="$1"
 
-    psql -U "$DB_USER" -d "$DB_NAME" -h "$DB_HOST" -p "$DB_PORT" -t -c "$sql_query"
+    if ! psql -U "$db_user" -d "$db_name" -h "$db_host" -p "$db_port" -t -c "$sql_query"; then
+        echo "Ошибка при выполнении SQL запроса: $sql_query"
+        exit 1
+    fi
 }
 
 # Создание таблицы migrations, если она не существует
 create_migrations_table() {
-    local create_table_sql="CREATE TABLE IF NOT EXISTS migrations (
+
+    # Спросим пароль для работы с psql
+    read -s -p "Введите пароль для пользователя ${db_user}: " DB_PASS
+    echo
+
+    # Экспортируем в нужную переменную
+    export PGPASSWORD="$DB_PASS"
+
+    echo "Создание таблицы migrations (если не существует)"
+    run_sql_c "CREATE TABLE IF NOT EXISTS migrations (
         id SERIAL PRIMARY KEY,
         migration_name VARCHAR(255) UNIQUE NOT NULL,
         applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );"
-
-    echo "Создание таблицы migrations (если не существует)..."
-    run_sql_c "$create_table_sql"
 }
 
 # Получение списка примененных миграций
 get_applied_migrations() {
-    local sql_query="SELECT migration_name FROM migrations;"
-    run_sql_c_t "$sql_query" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$'
+    run_sql_c_t "SELECT migration_name FROM migrations;"
 }
 
 # Применение миграций
 apply_migrations() {
-    echo "Поиск файлов миграций в директории: $MIGRATIONS_DIR"
+    echo "Поиск файлов миграций в директории: $dir_migrate"
 
-    # Проверка существования директории
-    if [ ! -d "$MIGRATIONS_DIR" ]; then
-        echo "Ошибка: Директория $MIGRATIONS_DIR не существует"
+    # Проверяем, существует ли директория
+    if [ ! -d "$dir_migrate" ]; then
+        echo "Ошибка: Директория $dir_migrate не существует"
         exit 1
     fi
 
     # Получение списка примененных миграций
     echo "Получение списка примененных миграций..."
-    applied_migrations=$(get_applied_migrations)
+    applied_migrations=$(run_sql_c_t "SELECT migration_name FROM migrations;")
 
-    # Создание массива из примененных миграций
-    declare -A applied_map
-    while IFS= read -r migration; do
-        if [ -n "$migration" ]; then
-            applied_map["$migration"]=1
-        fi
-    done <<< "$applied_migrations"
+    # Проверяем, пришёл ли успешный код 0 при получении списка
+    if [ $? -ne 0 ]; then
+        echo "Не удалось получить список применённых миграций"
+        exit 1
+    fi
 
     # Поиск и применение новых миграций
     echo "Поиск новых миграций..."
-    migration_files=("$MIGRATIONS_DIR"/*.sql)
+    applied_count=0
+    found_any=0
 
-    if [ ${#migration_files[@]} -eq 1 ] && [ ! -f "${migration_files[0]}" ]; then
-        echo "Файлы миграций не найдены в директории $MIGRATIONS_DIR"
-        return 0
-    fi
+    for migration_file in "$dir_migrate"/*.sql; do
 
-    # Сортировка файлов по имени для последовательного применения
-    mapfile -t sorted_migration_files < <(printf '%s\n' "${migration_files[@]}" | sort)
-
-    local applied_count=0
-    for migration_file in "${sorted_migration_files[@]}"; do
+        # Если шаблон не нашёл файлов, он может остаться как строка с '*'
+        # Гарантируем, что обрабатываем только реальные файлы
         if [ ! -f "$migration_file" ]; then
             continue
         fi
 
-        migration_name=$(basename "$migration_file")
+        found_any=1
 
-        # Проверка, была ли миграция уже применена
-        if [ -n "${applied_map[$migration_name]}" ]; then
+        Вопросы:
+        1. строка с '*'
+        2. {migration_file##*/}
+        3. grep -Fxq
+        4. printf "%q"
+        5. Осталась ли важность нумерации файлов миграции
+
+        # Получаем только имя файла (без пути)
+        migration_name="${migration_file##*/}"
+
+        # Проверяем, есть ли имя в списке уже применённых (точное совпадение строки)
+        if echo "$applied_migrations" | grep -Fxq "$migration_name"; then
             echo "Миграция уже применена: $migration_name"
         else
             echo "Применение миграции: $migration_name"
@@ -107,15 +122,19 @@ apply_migrations() {
             run_sql "$migration_file"
 
             # Запись информации о примененной миграции
-            local escaped_name
             escaped_name=$(printf "%q" "$migration_name")
-            local insert_sql="INSERT INTO migrations (migration_name) VALUES ($escaped_name);"
-
+            insert_sql="INSERT INTO migrations (migration_name) VALUES ('$escaped_name');"
             run_sql_c "$insert_sql"
+
             echo "Миграция применена успешно: $migration_name"
-            ((applied_count++))
+            applied_count=$((applied_count + 1))
         fi
     done
+
+    if [ $found_any -eq 0 ]; then
+        echo "Файлы миграций не найдены в директории $dir_migrate"
+        return 0
+    fi
 
     if [ $applied_count -eq 0 ]; then
         echo "Новых миграций для применения не найдено."
@@ -126,63 +145,23 @@ apply_migrations() {
 
 # Основная функция
 main() {
-    echo "Запуск мигратора PostgreSQL..."
-    echo "База данных: $DB_NAME"
-    echo "Пользователь: $DB_USER"
-    echo "Хост: $DB_HOST"
-    echo "Порт: $DB_PORT"
-    echo "Директория миграций: $MIGRATIONS_DIR"
+    echo "Запуск мигратора PostgreSQL"
+    echo "База данных: $db_name"
+    echo "Пользователь: $db_user"
+    echo "Директория миграций: $dir_migrate"
     echo ""
 
     # Создание таблицы миграций
     create_migrations_table
 
+    echo ""
+
     # Применение миграций
     apply_migrations
 
     echo ""
-    echo "Миграция завершена."
+    echo "Миграция завершена)"
 }
-
-# Проверка зависимости psql
-check_dependencies() {
-    if ! command -v psql &> /dev/null; then
-        echo "Ошибка: psql не найден. Убедитесь, что PostgreSQL установлен."
-        exit 1
-    fi
-}
-
-# Обработка аргументов командной строки
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -d|--database)
-            DB_NAME="$2"
-            shift 2
-            ;;
-        -u|--user)
-            DB_USER="$2"
-            shift 2
-            ;;
-        -h|--host)
-            DB_HOST="$2"
-            shift 2
-            ;;
-        -p|--port)
-            DB_PORT="$2"
-            shift 2
-            ;;
-        -dir|--directory)
-            MIGRATIONS_DIR="$2"
-            shift 2
-            ;;
-        *)
-            echo "Неизвестный параметр: $1"
-            echo "Использование: $0 [-d database] [-u user] [-h host] [-p port] [-dir directory]"
-            exit 1
-            ;;
-    esac
-done
 
 # Запуск скрипта
-check_dependencies
 main
