@@ -38,7 +38,8 @@ run_sql_c() {
 run_sql_c_t() {
     local sql_query="$1"
 
-    if ! psql -U "$db_user" -d "$db_name" -h "$db_host" -p "$db_port" -t -c "$sql_query"; then
+    # -A вернёт значения без выравнивания/пробелов, -t убирает заголовки
+    if ! psql -U "$db_user" -d "$db_name" -h "$db_host" -p "$db_port" -t -A -c "$sql_query"; then
         echo "Ошибка при выполнении SQL запроса: $sql_query"
         exit 1
     fi
