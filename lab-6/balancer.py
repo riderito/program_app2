@@ -34,22 +34,17 @@ class LoadBalancer:
         if not self.instances:
             return None
 
-        # Сохраняем начальный индекс для проверки полного круга
-        start_index = self.current_index
-
-        # Ищем следующий активный сервер, проходя по кругу
-        while True:
+        # Проверяем не более чем количество серверов
+        for _ in range(len(self.instances)):
             instance = self.instances[self.current_index]
             # Увеличиваем индекс для каждого следующего вызова
             self.current_index = (self.current_index + 1) % len(self.instances)
 
-            # Если сервер активен, возвращаем его
+            # Если выбранный сервер активен, возвращаем его
             if instance["active"]:
                 return instance
 
-            # Если прошли полный круг и все серверы неактивны, выходим
-            if self.current_index == start_index:
-                return None
+        return None
 
     # Проверяет статус конкретного сервера
     @staticmethod
@@ -121,9 +116,8 @@ def process():
     if not lb.instances:
         return "Нет доступных серверов", 500
 
-    max_tries = len(lb.instances)
-    tries = 0
-    while tries < max_tries:
+    # Пробуем найти работающий сервер за один проход
+    for _ in range(len(lb.instances)):
         # Получаем следующий сервер по алгоритму Round Robin
         instance = lb.get_next_instance()
         if not instance:
@@ -131,21 +125,22 @@ def process():
         try:
             response = requests.get(
                 f"http://{instance['ip']}:{instance['port']}/process",
+                # Ожидаем ответ 3 секунды
                 timeout=3
             )
             return response.json()
         except requests.exceptions.RequestException:
             # Помечаем этот инстанс как неактивный и пробуем следующий
             instance["active"] = False
-            tries += 1
+            continue
 
     return "Нет доступных серверов", 500
 
 
 if __name__ == '__main__':
     # Запускаем поток для проверки здоровья серверов в фоне
-    health_thread = threading.Thread(target=lb.health_check)
-    health_thread.daemon = True  # Поток завершится при завершении main
+    # Завершается при завершении потока программы из-за daemon
+    health_thread = threading.Thread(target=lb.health_check, daemon=True)
     health_thread.start()
 
     # Запускаем Flask-приложение балансировщика
