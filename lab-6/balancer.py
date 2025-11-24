@@ -137,6 +137,29 @@ def process():
     return "Нет доступных серверов", 500
 
 
+# Перехватывает запросы и перенаправляет их на доступные инстансы
+@app.route('/<path:path>')
+def intercept(path):
+    if not lb.instances:
+        return "Нет доступных серверов", 500
+
+    for _ in range(len(lb.instances)):
+        instance = lb.get_next_instance()
+        if not instance:
+            break
+        try:
+            response = requests.get(
+                f"http://{instance['ip']}:{instance['port']}/{path}",
+                timeout=3
+            )
+            return response.json()
+        except requests.exceptions.RequestException:
+            instance["active"] = False
+            continue
+
+    return "Нет доступных серверов", 500
+
+
 if __name__ == '__main__':
     # Запускаем поток для проверки здоровья серверов в фоне
     # Завершается при завершении потока программы из-за daemon
