@@ -22,15 +22,6 @@ def process():
     })
 
 
-# Тест перехвата запросов
-@app.route('/<path:path>')
-def test(path):
-    return jsonify({
-        "message": f"Мы любим РПП❤️ Обработан путь: /{path}",
-        "port": port
-    })
-
-
 if __name__ == '__main__':
     # Проверяем, что порт передан как аргумент командной строки
     if len(sys.argv) != 2:

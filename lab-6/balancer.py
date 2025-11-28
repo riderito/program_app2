@@ -23,6 +23,7 @@ class LoadBalancer:
 
     # Удаляет сервер из пула по индексу
     def remove_instance(self, index):
+        # Проверка, что индекс неотрицательный и не превышает кол-во серверов
         if 0 <= index < len(self.instances):
             self.instances.pop(index)
             # Сбрасываем индекс, если он вышел за границы после удаления
@@ -76,7 +77,7 @@ lb = LoadBalancer()
 
 @app.route('/')
 def index():
-    # Рендерим главную страницу с Web UI для управления серверами
+    # Рендерим главную страницу для управления серверами
     return render_template("index.html", instances=lb.instances)
 
 
@@ -116,7 +117,7 @@ def process():
     if not lb.instances:
         return "Нет доступных серверов", 500
 
-    # Пробуем найти работающий сервер за один проход
+    # Пробуем найти работающий сервер
     for _ in range(len(lb.instances)):
         # Получаем следующий сервер по алгоритму Round Robin
         instance = lb.get_next_instance()
