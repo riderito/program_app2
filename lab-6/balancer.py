@@ -22,10 +22,10 @@ class LoadBalancer:
         self.check_instance_health(instance)
 
     # Удаляет сервер из пула по индексу
-    def remove_instance(self, index):
+    def remove_instance(self, index_inst):
         # Проверка, что индекс неотрицательный и не превышает кол-во серверов
-        if 0 <= index < len(self.instances):
-            self.instances.pop(index)
+        if 0 <= index_inst < len(self.instances):
+            self.instances.pop(index_inst)
             # Сбрасываем индекс, если он вышел за границы после удаления
             if self.current_index >= len(self.instances):
                 self.current_index = 0
@@ -93,8 +93,8 @@ def add_instance():
 # Обрабатывает удаление сервера
 @app.route('/remove_instance', methods=['POST'])
 def remove_instance():
-    index = int(request.form['index'])
-    lb.remove_instance(index)
+    index_inst = int(request.form['index'])
+    lb.remove_instance(index_inst)
     return redirect('/')
 
 
