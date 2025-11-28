@@ -35,17 +35,21 @@ class LoadBalancer:
         if not self.instances:
             return None
 
-        # Проверяем не более чем количество серверов
-        for _ in range(len(self.instances)):
+        # Сохраняем начальный индекс для прохождения одного круга
+        start_index = self.current_index
+
+        # Ищем следующий активный сервер
+        while True:
             instance = self.instances[self.current_index]
             # Увеличиваем индекс для каждого следующего вызова
             self.current_index = (self.current_index + 1) % len(self.instances)
 
-            # Если выбранный сервер активен, возвращаем его
             if instance["active"]:
                 return instance
 
-        return None
+            # Если прошли полный круг и все серверы неактивны, выходим
+            if self.current_index == start_index:
+                return None
 
     # Проверяет статус конкретного сервера
     @staticmethod
