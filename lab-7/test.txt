@@ -1,0 +1,9 @@
+curl -X POST http://127.0.0.1:5000/set \
+  -H "Content-Type: application/json" \
+  -d '{"key":"Alexey","value":"Teya"}'
+
+curl http://127.0.0.1:5000/get/Alexey
+
+curl http://127.0.0.1:5000/exists/Alexey
+
+curl -X DELETE http://127.0.0.1:5000/delete/Alexey
