@@ -11,32 +11,51 @@ def generate_transaction():
                   "Цифровой контент", "Образование", "Сотовая связь"]
 
     return {
-        "timestamp": str(datetime.now()),  # Дата и время в момент генерации
-        "category": random.choice(categories),  # Случайная категория
-        "amount": round(random.uniform(10, 5000), 2)  # Сумма от 10 до 5000
+        # Дата и время в момент генерации
+        "timestamp": str(datetime.now()),
+        # Случайная категория
+        "category": random.choice(categories),
+        # Сумма от 10 до 5000 с двумя знаками после запятой
+        "amount": round(random.uniform(10, 5000), 2)
     }
 
 
-# Сохраняет список транзакций в JSON-файл
-async def save_transactions_to_file(transactions, file_index):
-    # Задаем имя для каждого файла по индексу пакета
-    file_name = f"transactions_{file_index}.json"
+# Загружает существующие транзакции из файла
+def load_existing_transactions(file_name):
+    try:
+        with open(file_name, "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return []  # Файл не существует, возвращаем пустой список
 
-    # Записываем данные в файл
+
+# Сохраняет список транзакций в JSON-файл
+async def save_transactions_to_file(transactions, file_name):
+    # Загружаем существующие транзакции
+    existing_transactions = load_existing_transactions(file_name)
+
+    # Объединяем старые и новые транзакции
+    all_transactions = existing_transactions + transactions
+
+    # Записываем все транзакции в файл в JSON-формате
     with open(file_name, "w") as file:
-        json.dump(transactions, file)
+        # indent дает отступы для читаемости
+        json.dump(all_transactions, file, indent=1)
 
     # Выводим информацию о сохранении
-    print(f"Сохранено {len(transactions)} транзакций в файл {file_name}")
-    return file_name
+    print(f"Добавлено {len(transactions)} транзакций, всего в файле: {len(all_transactions)}")
 
 
 # Асинхронно генерирует транзакции и сохраняет их пакетами по 10
 async def generate_transactions(total_count):
     print(f"Начинаем генерацию {total_count} транзакций")
 
-    transaction_package = []  # Текущий пакет транзакций
-    file_index = 1  # Индекс для имен файлов
+    # Текущий пакет транзакций
+    transaction_package = []
+    # Файл для всех транзакций
+    file_name = "transactions.json"
+    # Счетчик пакетов
+    package_count = 0
 
     for i in range(total_count):
         # Генерируем транзакцию
@@ -45,18 +64,20 @@ async def generate_transactions(total_count):
 
         # Каждые 10 транзакций сохраняем в файл
         if len(transaction_package) == 10:
-            # Создаем задачу для асинхронного сохранения
-            await save_transactions_to_file(transaction_package, file_index)
+            package_count += 1
 
-            # Очищаем пакет и увеличиваем индекс файла
+            # Создаем задачу для асинхронного сохранения
+            await save_transactions_to_file(transaction_package, file_name)
+
+            # Очищаем пакет
             transaction_package.clear()
-            file_index += 1
 
     # Сохраняем оставшиеся транзакции (если их меньше 10)
     if transaction_package:
-        await save_transactions_to_file(transaction_package, file_index)
+        package_count += 1
+        await save_transactions_to_file(transaction_package, file_name)
 
-    print("Генерация транзакций завершена!")
+    print(f"Генерация завершена. Создано {package_count} пакетов, всего {total_count} транзакций")
 
 
 async def main():

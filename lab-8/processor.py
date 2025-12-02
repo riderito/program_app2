@@ -1,38 +1,27 @@
 import asyncio
 import json
-import glob
 
 
-# Загружает все транзакции из JSON-файлов
-def load_transactions_from_files():
-    # Находим все файлы с транзакциями по шаблону
-    transaction_files = glob.glob("transactions_*.json")
+# Загружает все транзакции из файла
+def load_transactions_from_file():
+    file_name = "transactions.json"
 
-    if not transaction_files:
-        print("Файлы с транзакциями не найдены")
+    try:
+        with open(file_name, "r") as file:
+            transactions = json.load(file)
+            return transactions
+    except FileNotFoundError:
+        print(f"Файл {file_name} не найден")
         return []
-
-    all_transactions = []
-
-    # Загружаем транзакции из каждого файла
-    for file_name in transaction_files:
-        try:
-            with open(file_name, "r") as file:
-                transactions = json.load(file)
-                # extend распаковывает и добавляет элементы по одному в общий список
-                all_transactions.extend(transactions)
-        except Exception as e:
-            print(f"Ошибка при чтении файла {file_name}: {e}")
-
-    return all_transactions
 
 
 # Прибавляет сумму одной транзакции к итогам по соответствующей категории
-async def process_transaction(transaction, category_totals):
+async def sum_transaction(transaction, category_totals):
+    # Определяем категорию и сумму текущей транзакции
     category = transaction["category"]
     amount = transaction["amount"]
 
-    # Если операций данной категории ещё не было
+    # Если операций данной категории ещё не было добавлено в словарь
     if category not in category_totals:
         category_totals[category] = 0
 
@@ -40,7 +29,7 @@ async def process_transaction(transaction, category_totals):
 
 
 # Асинхронно обрабатывает список транзакций
-async def process_transactions_async(transactions):
+async def process_transactions(transactions):
     print(f"Начинаем обработку {len(transactions)} транзакций")
 
     # Словарь для хранения сумм по категориям
@@ -49,7 +38,7 @@ async def process_transactions_async(transactions):
     # Создаем задачи для обработки каждой транзакции
     tasks = []
     for transaction in transactions:
-        task = asyncio.create_task(process_transaction(transaction, category_totals))
+        task = asyncio.create_task(sum_transaction(transaction, category_totals))
         tasks.append(task)
 
     # Запускаем задачи и ждем завершения, * распаковывает список задач по одной
@@ -59,7 +48,7 @@ async def process_transactions_async(transactions):
 
 
 # Проверяет, какие категории превысили порог
-def check_warnings(category_totals, warning_threshold=4500):
+def check_warnings(category_totals, warning_threshold=10000):
     warnings_count = 0
 
     # items() превращает словарь в список кортежей
@@ -73,7 +62,7 @@ def check_warnings(category_totals, warning_threshold=4500):
 
 
 # Выводит итоговую информацию по категориям
-def print_summary(category_totals):
+def print_sum(category_totals):
     print("\nИтоги по категориям:")
 
     if not category_totals:
@@ -94,21 +83,21 @@ def print_summary(category_totals):
 
 
 async def main():
-    # Загружаем транзакции из файлов
-    transactions = load_transactions_from_files()
+    # Загружаем транзакции из файла
+    transactions = load_transactions_from_file()
 
     if not transactions:
         print("Нет транзакций для обработки")
         return
 
     # Асинхронно обрабатываем транзакции
-    category_totals = await process_transactions_async(transactions)
+    category_totals = await process_transactions(transactions)
 
     # Проверяем превышение порога (один раз для каждой категории)
     check_warnings(category_totals)
 
     # Выводим итоговую информацию
-    print_summary(category_totals)
+    print_sum(category_totals)
 
 
 if __name__ == "__main__":
