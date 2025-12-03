@@ -71,7 +71,7 @@ def process_order(order):
 
     print(f"Total: {order_total}")
     process_payment(order_total)
-    print("Sending confirmation email...")
+    send_confirmation()
     print("Order complete.")
 
 
