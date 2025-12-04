@@ -157,7 +157,10 @@ def intercept(path):
                 f"http://{instance['ip']}:{instance['port']}/{path}",
                 timeout=3
             )
-            return response.json()
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                return jsonify({"error": f"Путь не найден на сервере {instance['ip']}:{instance['port']}"})
         except requests.exceptions.RequestException:
             instance["active"] = False
             continue
