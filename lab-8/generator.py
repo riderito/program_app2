@@ -40,7 +40,7 @@ async def save_transaction_package(transactions):
     # Добавляем новые транзакции к существующим
     all_transactions = existing_transactions + transactions
 
-    # Сохраняем обновленные данные в файл
+    # Сохраняем обновленные данные в файл, indent делает json читабельным в файле
     with open(file_name, "w") as file:
         json.dump(all_transactions, file, indent=1)
 
