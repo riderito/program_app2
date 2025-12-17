@@ -48,6 +48,8 @@ def save_data():
 @app.route('/set', methods=['POST'])
 @limiter.limit("10 per minute")  # 10 запросов в минуту только для этого маршрута
 def set_value():
+    if not request.is_json:
+        return jsonify({'error': 'Content-Type должен быть application/json'}), 400
     # Ожидает JSON в теле запроса с полями 'key' и 'value'
     try:
         # Получаем ключ из тела запроса
