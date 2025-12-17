@@ -3,6 +3,9 @@ import json
 import random
 from datetime import datetime
 
+# Название файла со всеми транзакциями
+file_name = "transactions.json"
+
 
 # Генерирует одну финансовую транзакцию
 def generate_transaction():
@@ -15,13 +18,13 @@ def generate_transaction():
         "timestamp": str(datetime.now()),
         # Случайная категория
         "category": random.choice(categories),
-        # Сумма от 10 до 5000 с двумя знаками после запятой
-        "amount": round(random.uniform(10, 5000), 2)
+        # Сумма от 1 до 5000 с двумя знаками после запятой
+        "amount": round(random.uniform(1, 5000), 2)
     }
 
 
 # Загружает существующие транзакции из файла
-def load_existing_transactions(file_name):
+def load_existing_transactions():
     try:
         with open(file_name, "r") as file:
             return json.load(file)
@@ -29,61 +32,75 @@ def load_existing_transactions(file_name):
         return []  # Файл не существует, возвращаем пустой список
 
 
-# Сохраняет список транзакций в JSON-файл
-async def save_transactions_to_file(transactions, file_name):
+# Сохраняет пакет транзакций в файл, когда накопилось 10 штук
+async def save_transaction_package(transactions):
     # Загружаем существующие транзакции
-    existing_transactions = load_existing_transactions(file_name)
+    existing_transactions = load_existing_transactions()
 
-    # Объединяем старые и новые транзакции
+    # Добавляем новые транзакции к существующим
     all_transactions = existing_transactions + transactions
 
-    # Записываем все транзакции в файл в JSON-формате
+    # Сохраняем обновленные данные в файл
     with open(file_name, "w") as file:
-        # indent дает отступы для читаемости
         json.dump(all_transactions, file, indent=1)
 
-    # Выводим информацию о сохранении
-    print(f"Добавлено {len(transactions)} транзакций, всего в файле: {len(all_transactions)}")
+    # Вывод в консоль после сохранения
+    print(f"Сохранено {len(transactions)} транзакций. Всего в файле: {len(all_transactions)}")
 
 
-# Асинхронно генерирует транзакции и сохраняет их пакетами по 10
-async def generate_transactions(total_count):
-    print(f"Начинаем генерацию {total_count} транзакций")
-
-    # Текущий пакет транзакций
-    transaction_package = []
-    # Файл для всех транзакций
-    file_name = "transactions.json"
-    # Счетчик пакетов
-    package_count = 0
+# Генерирует транзакции и помещает их в очередь (источник данных в реактивном потоке)
+async def transaction_publisher(transaction_queue, total_count):
+    print(f"Начинаем генерацию {total_count} транзакций...")
 
     for i in range(total_count):
-        # Генерируем транзакцию
+        # Генерируем одну транзакцию
         transaction = generate_transaction()
-        transaction_package.append(transaction)
 
-        # Каждые 10 транзакций сохраняем в файл
-        if len(transaction_package) == 10:
-            package_count += 1
+        # Помещаем транзакцию в очередь
+        # "Потребитель" будет забирать транзакции отсюда
+        await transaction_queue.put(transaction)
 
-            # Создаем задачу для асинхронного сохранения
-            await save_transactions_to_file(transaction_package, file_name)
+    # Отправляем сигнал завершения в очередь
+    await transaction_queue.put(None)
+    print(f"Генерация завершена. Создано {total_count} транзакций")
 
-            # Очищаем пакет
-            transaction_package.clear()
 
-    # Сохраняем оставшиеся транзакции (если их меньше 10)
-    if transaction_package:
-        package_count += 1
-        await save_transactions_to_file(transaction_package, file_name)
+# Обрабатывает транзакции из очереди (потребитель данных в реактивном потоке)
+async def transaction_subscriber(transaction_queue):
+    # Хранилище для накопления транзакций
+    storage = []
 
-    print(f"Генерация завершена. Создано {package_count} пакетов, всего {total_count} транзакций")
+    while True:
+        # Ждем следующую транзакцию из очереди
+        # Выполняется, когда появляются данные
+        transaction = await transaction_queue.get()
+
+        # Если получили None, это сигнал завершения
+        if transaction is None:
+            break
+
+        # Добавляем транзакцию в хранилище
+        storage.append(transaction)
+
+        # Если накопилось 10 транзакций, сохраняем их
+        if len(storage) >= 10:
+            await save_transaction_package(storage)
+            storage = []  # Очищаем буфер
+
+    # Сохраняем оставшиеся транзакции (если они есть)
+    if storage:
+        await save_transaction_package(storage)
 
 
 async def main():
+    # Создаем очередь для транзакций
+    # Главный элемент реактивной системы - через него передаются данные
+    transaction_queue = asyncio.Queue()
+
     # Запрашиваем количество транзакций у пользователя
     try:
         total_count = int(input("Введите количество транзакций для генерации: "))
+
         if total_count <= 0:
             print("Количество должно быть положительным числом")
             return
@@ -91,8 +108,16 @@ async def main():
         print("Пожалуйста, введите целое число")
         return
 
-    # Запускаем генерацию транзакций
-    await generate_transactions(total_count)
+    try:
+        # Запускаем производителя и потребителя параллельно
+        # Работают одновременно и общаются через очередь
+        await asyncio.gather(
+            transaction_publisher(transaction_queue, total_count),
+            transaction_subscriber(transaction_queue)
+        )
+
+    except Exception as error:
+        print(f"Произошла ошибка: {error}")
 
 
 if __name__ == "__main__":
