@@ -14,19 +14,19 @@ def send_sms(to, message):
 
 
 # Функция для отправки сообщения (общая часть)
-def send_message(recipient, content_type, content, service_name):
+def send_message(recipient, content_type, content, content_label, service_name):
     print(f"Connecting to {service_name}...")
-    print(f"Sending {content_type} to {recipient} with {content_type} '{content}'...")
+    print(f"Sending {content_type} to {recipient} with {content_label} '{content}'...")
     print(f"{content_type} sent.")
 
 
 # Переделываем старые функции, используя общую функцию
 def send_email(to, subject, body):
-    send_message(to, "email", subject, "SMTP server")
+    send_message(to, "email", subject, "subject", "SMTP server")
 
 
 def send_sms(to, message):
-    send_message(to, "SMS", message, "SMS gateway")
+    send_message(to, "SMS", message, "message", "SMS gateway")
 
 
 # Код 2
@@ -180,12 +180,12 @@ def create_report(name, age, department, salary, bonus, performance_score):
 # Используем словарь для передачи всех данных сотрудника
 def create_report(employee_data):
     # Извлекаем данные из словаря
-    name = employee_data["name"]
-    age = employee_data["age"]
-    department = employee_data["department"]
-    salary = employee_data["salary"]
-    bonus = employee_data["bonus"]
-    performance_score = employee_data["performance_score"]
+    name = employee_data.get("name", "Неизвестно")
+    age = employee_data.get("age", 0)
+    department = employee_data.get("department", "Неизвестно")
+    salary = employee_data.get("salary", 0)
+    bonus = employee_data.get("bonus", 0)
+    performance_score = employee_data.get("performance_score", 0)
 
     # Выводим отчет
     print(f"Name: {name}")
