@@ -85,7 +85,7 @@ async def transaction_subscriber(transaction_queue):
         # Если накопилось 10 транзакций, сохраняем их
         if len(storage) >= 10:
             await save_transaction_package(storage)
-            storage = []  # Очищаем буфер
+            storage = []  # Очищаем хранилище
 
     # Сохраняем оставшиеся транзакции (если они есть)
     if storage:
