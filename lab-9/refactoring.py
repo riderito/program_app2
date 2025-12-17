@@ -54,9 +54,9 @@ def calculate_total(order_items):
 
 
 # Функция для обработки платежа
-def process_payment(amount):
+def process_payment():
     print("Processing payment...")
-    print(f"Payment successful for amount: {amount}!")
+    print(f"Payment successful!")
 
 
 # Функция для отправки подтверждения
@@ -70,8 +70,7 @@ def process_order(order):
     order_items = order["items"]
     order_total = calculate_total(order_items)
     print(f"Total: {order_total}")
-
-    process_payment(order_total)
+    process_payment()
     send_confirmation()
 
 
